@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Services\BetService;
+use App\Http\Requests\PlaceBetRequest;
+use Illuminate\Http\JsonResponse;
 
 class BetController extends Controller
 {

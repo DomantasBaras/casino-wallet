@@ -7,7 +7,7 @@ use App\Exceptions\InsufficientFunds;
 use App\Exceptions\WalletNotFound;
 use App\Models\Transaction;
 use App\Repositories\WalletRepositoryInterface;
-
+use Illuminate\Support\Facades\DB;
 class BetService
 {
     public function __construct(
@@ -50,13 +50,17 @@ class BetService
 
         $this->wallets->overwriteBalance($wallet, $newBalance);
 
-        return $this->wallets->recordTransaction(
-            wallet: $wallet,
-            type: TransactionType::Bet,
-            amount: bcsub('0', $amount, 4),
-            balanceAfter: $newBalance,
-            idempotencyKey: $idempotencyKey,
-            roundId: $roundId,
-        );
+        return DB::transaction(function () use ($wallet, $amount, $newBalance, $idempotencyKey, $roundId) {
+            $this->wallets->overwriteBalance($wallet, $newBalance);
+
+            return $this->wallets->recordTransaction(
+                wallet: $wallet,
+                type: TransactionType::Bet,
+                amount: bcsub('0', $amount, 4),
+                balanceAfter: $newBalance,
+                idempotencyKey: $idempotencyKey,
+                roundId: $roundId,
+            );
+        });
     }
 }

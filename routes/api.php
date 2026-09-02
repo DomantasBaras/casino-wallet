@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\BetController;
 /*
  | Laravel already ships a /up endpoint, but it only proves PHP booted.
  | This one proves the three things session 1 is actually about: nginx reaches
