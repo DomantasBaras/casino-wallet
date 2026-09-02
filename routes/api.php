@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
  | php-fpm, php-fpm reaches MySQL, and php-fpm reaches Redis. If any of those
  | is wrong, this returns 503 and says which.
  */
+Route::post('/v1/bets', [BetController::class, 'store']);
 Route::get('/health', function () {
     $checks = [];
 

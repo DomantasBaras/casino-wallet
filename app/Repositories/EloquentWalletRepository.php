@@ -1,0 +1,46 @@
+<?php
+
+namespace App\Repositories;
+
+use App\Enums\TransactionType;
+use App\Models\Transaction;
+use App\Models\Wallet;
+
+class EloquentWalletRepository implements WalletRepositoryInterface
+{
+    public function findForPlayer(string $playerId, string $currency): ?Wallet
+    {
+        return Wallet::query()
+            ->where('player_id', $playerId)
+            ->where('currency', $currency)
+            ->first();
+    }
+
+    public function findById(int $id): ?Wallet
+    {
+        return Wallet::query()->find($id);
+    }
+
+    public function overwriteBalance(Wallet $wallet, string $newBalance): void
+    {
+        $wallet->balance = $newBalance;
+        $wallet->save();
+    }
+
+    public function recordTransaction(
+        Wallet $wallet,
+        TransactionType $type,
+        string $amount,
+        string $balanceAfter,
+        string $idempotencyKey,
+        ?string $roundId = null,
+    ): Transaction {
+        return $wallet->transactions()->create([
+            'type' => $type,
+            'amount' => $amount,
+            'balance_after' => $balanceAfter,
+            'idempotency_key' => $idempotencyKey,
+            'round_id' => $roundId,
+        ]);
+    }
+}
