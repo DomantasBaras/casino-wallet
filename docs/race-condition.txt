@@ -1,0 +1,75 @@
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  37 x HTTP 201
+  13 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 37
+  ledger sum            : -370.0000
+  balance implied by ledger : -270.0000
+
+  INVARIANT VIOLATED — the ledger records -370.0000 of movement,
+  which should leave -270.0000, but the wallet holds 0.0000.
+  The difference is money the house cannot account for.
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  50 x HTTP 201
+
+=== Final state ===
+  wallet balance        : 50.0000
+  ledger rows           : 50
+  ledger sum            : -500.0000
+  balance implied by ledger : -400.0000
+
+  INVARIANT VIOLATED — the ledger records -500.0000 of movement,
+  which should leave -400.0000, but the wallet holds 50.0000.
+  The difference is money the house cannot account for.
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  28 x HTTP 201
+  22 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 28
+  ledger sum            : -280.0000
+  balance implied by ledger : -180.0000
+
+  INVARIANT VIOLATED — the ledger records -280.0000 of movement,
+  which should leave -180.0000, but the wallet holds 0.0000.
+  The difference is money the house cannot account for.
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  27 x HTTP 201
+  23 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 27
+  ledger sum            : -270.0000
+  balance implied by ledger : -170.0000
+
+  INVARIANT VIOLATED — the ledger records -270.0000 of movement,
+  which should leave -170.0000, but the wallet holds 0.0000.
+  The difference is money the house cannot account for.

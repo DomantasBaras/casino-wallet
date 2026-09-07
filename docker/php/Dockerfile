@@ -10,5 +10,6 @@ RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY php.ini /usr/local/etc/php/conf.d/99-casino-wallet.ini
+COPY zz-www.conf /usr/local/etc/php-fpm.d/zz-www.conf
 
 WORKDIR /var/www/html
