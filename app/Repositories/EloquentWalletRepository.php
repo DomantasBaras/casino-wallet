@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\TransactionType;
 use App\Models\Transaction;
 use App\Models\Wallet;
+use Illuminate\Support\Facades\DB;
 
 class EloquentWalletRepository implements WalletRepositoryInterface
 {
@@ -21,10 +22,30 @@ class EloquentWalletRepository implements WalletRepositoryInterface
         return Wallet::query()->find($id);
     }
 
-    public function overwriteBalance(Wallet $wallet, string $newBalance): void
+    public function debitIfAffordable(Wallet $wallet, string $amount): bool
     {
-        $wallet->balance = $newBalance;
-        $wallet->save();
+        $affected = Wallet::query()
+            ->whereKey($wallet->id)
+            ->whereRaw('balance >= ?', [$amount])
+            ->update([
+                'balance' => DB::raw('balance - ' . $this->quoteAmount($amount)),
+            ]);
+
+        return $affected === 1;
+    }
+
+    /**
+     * Amounts reach here already validated as a decimal string by
+     * PlaceBetRequest, but this is going into raw SQL, so re-assert the shape
+     * rather than trusting a caller further up.
+     */
+    private function quoteAmount(string $amount): string
+    {
+        if (! preg_match('/^\d{1,16}(\.\d{1,4})?$/', $amount)) {
+            throw new \InvalidArgumentException('Invalid money amount: ' . $amount);
+        }
+
+        return $amount;
     }
 
     public function recordTransaction(

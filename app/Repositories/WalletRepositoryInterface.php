@@ -13,14 +13,16 @@ interface WalletRepositoryInterface
     public function findById(int $id): ?Wallet;
 
     /**
-     * Overwrite the balance with a value the caller has already computed.
+     * Atomically debit the wallet if, and only if, it can afford the amount.
      *
-     * Named "overwrite" rather than "update" on purpose: this is the unsafe
-     * write that step 5 will break. Step 6 replaces it with a conditional
-     * UPDATE that computes the new balance inside the database.
+     * The affordability check and the write are a single statement, so no other
+     * request can act on a balance this one has already decided against. Returns
+     * true if the debit was applied, false if the balance was insufficient.
+     *
+     * Replaces overwriteBalance(), which computed the new balance in PHP from a
+     * value it had read earlier — see docs/race-condition.md.
      */
-    public function overwriteBalance(Wallet $wallet, string $newBalance): void;
-
+    public function debitIfAffordable(Wallet $wallet, string $amount): bool;
     /**
      * Append a row to the ledger. Amount is signed — negative for debits.
      */

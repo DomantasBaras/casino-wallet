@@ -14,19 +14,6 @@ class BetService
         private readonly WalletRepositoryInterface $wallets,
     ) {}
 
-    /**
-     * NAIVE ON PURPOSE.
-     *
-     * Reads the balance, decides in PHP whether it is sufficient, then writes
-     * back a value computed from what it read. Between the read and the write
-     * another request can do exactly the same thing, and both will believe
-     * they were affordable.
-     *
-     * This is not a strawman — it is the shape most wallet code takes on the
-     * first pass, and it passes every single-threaded test you can write.
-     *
-     * Step 5 breaks it. Step 6 replaces it.
-     */
     public function place(
         string $playerId,
         string $currency,
@@ -40,24 +27,23 @@ class BetService
             throw new WalletNotFound();
         }
 
-        // bccomp, not <, because these are decimal strings. Comparing them
-        // with PHP's operators would be a second bug on top of the race.
-        if (bccomp($wallet->balance, $amount, 4) < 0) {
-            throw new InsufficientFunds();
-        }
+        return DB::transaction(function () use ($wallet, $amount, $idempotencyKey, $roundId) {
+            // The decision and the write are the same statement. If this returns
+            // false the balance was insufficient at the moment of the write —
+            // not at the moment of some earlier read.
+            if (! $this->wallets->debitIfAffordable($wallet, $amount)) {
+                throw new InsufficientFunds();
+            }
 
-        $newBalance = bcsub($wallet->balance, $amount, 4);
-
-        $this->wallets->overwriteBalance($wallet, $newBalance);
-
-        return DB::transaction(function () use ($wallet, $amount, $newBalance, $idempotencyKey, $roundId) {
-            $this->wallets->overwriteBalance($wallet, $newBalance);
+            // Re-read to get the balance the database actually landed on. The
+            // application no longer computes it, so it has to ask.
+            $wallet->refresh();
 
             return $this->wallets->recordTransaction(
                 wallet: $wallet,
                 type: TransactionType::Bet,
                 amount: bcsub('0', $amount, 4),
-                balanceAfter: $newBalance,
+                balanceAfter: $wallet->balance,
                 idempotencyKey: $idempotencyKey,
                 roundId: $roundId,
             );

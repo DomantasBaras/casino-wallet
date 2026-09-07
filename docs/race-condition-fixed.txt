@@ -1,0 +1,85 @@
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  10 x HTTP 201
+  40 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 10
+  ledger sum            : -100.0000
+  balance implied by ledger : 0.0000
+
+  INVARIANT HOLDS — balance agrees with the ledger
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  10 x HTTP 201
+  40 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 10
+  ledger sum            : -100.0000
+  balance implied by ledger : 0.0000
+
+  INVARIANT HOLDS — balance agrees with the ledger
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  10 x HTTP 201
+  40 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 10
+  ledger sum            : -100.0000
+  balance implied by ledger : 0.0000
+
+  INVARIANT HOLDS — balance agrees with the ledger
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 50 concurrent bets of 10.00 ===
+affordable: 10 of 50
+
+response codes:
+  10 x HTTP 201
+  40 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 10
+  ledger sum            : -100.0000
+  balance implied by ledger : 0.0000
+
+  INVARIANT HOLDS — balance agrees with the ledger
+=== Resetting to a known state ===
+starting balance: 100.0000
+
+=== Firing 100 concurrent bets of 10.00 ===
+affordable: 10 of 100
+
+response codes:
+  10 x HTTP 201
+  90 x HTTP 422
+
+=== Final state ===
+  wallet balance        : 0.0000
+  ledger rows           : 10
+  ledger sum            : -100.0000
+  balance implied by ledger : 0.0000
+
+  INVARIANT HOLDS — balance agrees with the ledger
