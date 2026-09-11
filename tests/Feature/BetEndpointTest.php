@@ -183,4 +183,72 @@ class BetEndpointTest extends TestCase
             ->where('id', $wallet->id)
             ->update(['balance' => '-1.0000']);
     }
+
+    public function test_a_replayed_key_does_not_charge_the_wallet_twice(): void
+    {
+        $wallet = $this->wallet('100.0000');
+
+        $first = $this->bet('10.00', 'dup')->assertCreated();
+        $second = $this->bet('10.00', 'dup')->assertOk();
+
+        // 201 then 200: applied, then recognised as already applied.
+        $this->assertSame(
+            $first->json('transaction_id'),
+            $second->json('transaction_id'),
+            'a replay must return the original transaction, not a new one',
+        );
+        $this->assertSame($first->json('balance'), $second->json('balance'));
+
+        $this->assertSame('90.0000', $wallet->fresh()->balance);
+        $this->assertSame(1, Transaction::query()->count());
+    }
+
+    /**
+     * A retry does not re-price against the current balance. It returns what
+     * happened the first time, even if the wallet has moved since. That is what
+     * makes a retry safe for a caller that never learned the outcome.
+     */
+    public function test_a_replay_returns_the_original_result_not_the_current_balance(): void
+    {
+        $this->wallet('100.0000');
+
+        $original = $this->bet('10.00', 'dup')->assertCreated();
+        $this->bet('25.00', 'other')->assertCreated();
+
+        $replay = $this->bet('10.00', 'dup')->assertOk();
+
+        $this->assertSame('90.0000', $replay->json('balance'));
+        $this->assertSame($original->json('transaction_id'), $replay->json('transaction_id'));
+        $this->assertSame('65.0000', Wallet::query()->sole()->balance);
+        $this->assertSame(2, Transaction::query()->count());
+    }
+
+    /**
+     * A refused bet writes no row, so its key is not consumed. Retrying it later
+     * re-evaluates against the balance as it stands then — the correct behaviour,
+     * since the earlier refusal was about funds, not about the request.
+     */
+    public function test_a_rejected_bet_does_not_consume_its_key(): void
+    {
+        $wallet = $this->wallet('5.0000');
+
+        $this->bet('10.00', 'retry-me')->assertStatus(422);
+
+        $wallet->update(['balance' => '50.0000']);
+
+        $this->bet('10.00', 'retry-me')->assertCreated();
+        $this->assertSame('40.0000', $wallet->fresh()->balance);
+        $this->assertSame(1, Transaction::query()->count());
+    }
+
+    public function test_different_keys_are_charged_separately(): void
+    {
+        $wallet = $this->wallet('100.0000');
+
+        $this->bet('10.00', 'a')->assertCreated();
+        $this->bet('10.00', 'b')->assertCreated();
+
+        $this->assertSame('80.0000', $wallet->fresh()->balance);
+        $this->assertSame(2, Transaction::query()->count());
+    }
 }

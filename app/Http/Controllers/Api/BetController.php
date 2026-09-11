@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\BetService;
 use App\Http\Requests\PlaceBetRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class BetController extends Controller
 {
@@ -14,7 +15,7 @@ class BetController extends Controller
 
     public function store(PlaceBetRequest $request): JsonResponse
     {
-        $transaction = $this->bets->place(
+        $result = $this->bets->place(
             playerId: $request->string('player_id')->toString(),
             currency: $request->string('currency')->toString(),
             amount: $request->string('amount')->toString(),
@@ -23,10 +24,8 @@ class BetController extends Controller
         );
 
         return response()->json([
-            'transaction_id' => $transaction->id,
-            // String, not a JSON number — a client parsing this as a float
-            // would reintroduce exactly the problem ADR 0001 avoids.
-            'balance' => (string) $transaction->balance_after,
-        ], 201);
+            'transaction_id' => $result->transaction->id,
+            'balance' => (string) $result->transaction->balance_after,
+        ], $result->replayed ? 200 : 201);
     }
 }

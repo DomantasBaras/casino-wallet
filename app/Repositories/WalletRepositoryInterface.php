@@ -12,6 +12,7 @@ interface WalletRepositoryInterface
 
     public function findById(int $id): ?Wallet;
 
+    public function findTransactionByKey(string $idempotencyKey): ?Transaction;
     /**
      * Atomically debit the wallet if, and only if, it can afford the amount.
      *

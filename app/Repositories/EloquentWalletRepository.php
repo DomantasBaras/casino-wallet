@@ -48,6 +48,13 @@ class EloquentWalletRepository implements WalletRepositoryInterface
         return $amount;
     }
 
+    public function findTransactionByKey(string $idempotencyKey): ?Transaction
+    {
+        return Transaction::query()
+            ->where('idempotency_key', $idempotencyKey)
+            ->first();
+    }
+
     public function recordTransaction(
         Wallet $wallet,
         TransactionType $type,

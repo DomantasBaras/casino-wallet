@@ -8,6 +8,7 @@ use App\Exceptions\WalletNotFound;
 use App\Models\Transaction;
 use App\Repositories\WalletRepositoryInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
 class BetService
 {
     public function __construct(
@@ -20,33 +21,51 @@ class BetService
         string $amount,
         string $idempotencyKey,
         ?string $roundId = null,
-    ): Transaction {
+    ): BetResult {
+        // Already applied under this key. Return the original result and do no
+        // work — including no wallet lookup, so a replay costs one indexed read.
+        $existing = $this->wallets->findTransactionByKey($idempotencyKey);
+
+        if ($existing !== null) {
+            return new BetResult($existing, replayed: true);
+        }
+
         $wallet = $this->wallets->findForPlayer($playerId, $currency);
 
         if ($wallet === null) {
             throw new WalletNotFound();
         }
 
-        return DB::transaction(function () use ($wallet, $amount, $idempotencyKey, $roundId) {
-            // The decision and the write are the same statement. If this returns
-            // false the balance was insufficient at the moment of the write —
-            // not at the moment of some earlier read.
-            if (! $this->wallets->debitIfAffordable($wallet, $amount)) {
-                throw new InsufficientFunds();
+        try {
+            $transaction = DB::transaction(function () use ($wallet, $amount, $idempotencyKey, $roundId) {
+                if (! $this->wallets->debitIfAffordable($wallet, $amount)) {
+                    throw new InsufficientFunds();
+                }
+
+                $wallet->refresh();
+
+                return $this->wallets->recordTransaction(
+                    wallet: $wallet,
+                    type: TransactionType::Bet,
+                    amount: bcsub('0', $amount, 4),
+                    balanceAfter: $wallet->balance,
+                    idempotencyKey: $idempotencyKey,
+                    roundId: $roundId,
+                );
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            // A concurrent request with the same key committed first. The unique
+            // index rejected this insert and the transaction rolled back, so this
+            // request's debit was undone — the wallet was charged exactly once.
+            $winner = $this->wallets->findTransactionByKey($idempotencyKey);
+
+            if ($winner === null) {
+                throw $e;   // not the collision we expected; don't swallow it
             }
 
-            // Re-read to get the balance the database actually landed on. The
-            // application no longer computes it, so it has to ask.
-            $wallet->refresh();
+            return new BetResult($winner, replayed: true);
+        }
 
-            return $this->wallets->recordTransaction(
-                wallet: $wallet,
-                type: TransactionType::Bet,
-                amount: bcsub('0', $amount, 4),
-                balanceAfter: $wallet->balance,
-                idempotencyKey: $idempotencyKey,
-                roundId: $roundId,
-            );
-        });
+        return new BetResult($transaction, replayed: false);
     }
 }
