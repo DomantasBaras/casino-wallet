@@ -1,58 +1,155 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# casino-wallet
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A wallet service for iGaming-style bets and transfers, built to work correctly
+under concurrent load — and to show the evidence rather than assert it.
 
-## About Laravel
+## The problem this repository is about
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+A wallet holds 100.00 EUR. Fifty concurrent requests each try to bet 10.00.
+Exactly ten should succeed.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+The first implementation read the balance, checked affordability in PHP, and
+wrote back a computed value. Six consecutive runs against identical starting
+state:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Run | Accepted | Ledger sum | Final balance | Unaccounted |
+|-----|----------|------------|---------------|-------------|
+| 1   | 19       | -190.00    | 0.00          | 90.00       |
+| 2   | 18       | -180.00    | 0.00          | 80.00       |
+| 3   | 37       | -370.00    | 0.00          | 270.00      |
+| 4   | **50**   | -500.00    | **50.00**     | **450.00**  |
+| 5   | 28       | -280.00    | 0.00          | 180.00      |
+| 6   | 27       | -270.00    | 0.00          | 170.00      |
 
-## Learning Laravel
+Run 4 accepted every single bet. The affordability check rejected nothing, and
+the wallet finished holding *more* than ten legitimate bets would have left it:
+a player wagered 500.00 against a balance of 100.00 and was charged 50.00.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+No request errored. Every response was well-formed. The balances — 0.00, 50.00
+— look entirely ordinary. The loss is visible only by reconciling the ledger
+against the wallet, which is what makes this worse than a negative balance
+would be.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+After replacing read-check-write with a single atomic conditional statement:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+| Concurrency | Accepted | Rejected | Ledger sum | Final balance | Invariant |
+|-------------|----------|----------|------------|---------------|-----------|
+| 50          | 10       | 40       | -100.00    | 0.00          | holds     |
+| 50          | 10       | 40       | -100.00    | 0.00          | holds     |
+| 50          | 10       | 40       | -100.00    | 0.00          | holds     |
+| 50          | 10       | 40       | -100.00    | 0.00          | holds     |
+| 100         | 10       | 90       | -100.00    | 0.00          | holds     |
 
-## Agentic Development
+Six runs, six different answers. Then five runs, one answer — and doubling the
+concurrency changes nothing.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Full write-up with the mechanism and raw captures:
+[`docs/race-condition.md`](docs/race-condition.md).
+The broken version is tagged `v0-naive` if you want to run it yourself.
+
+## Reproducing it
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+docker compose up -d
+./scripts/race.sh 50
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The script resets to a known state, fires N concurrent bets, and reports
+whether the starting balance plus every recorded ledger movement still equals
+the stored balance.
 
-## Contributing
+## What's here
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Two write paths, each concurrency-safe by a different mechanism, because the
+shape of the decision differs.
 
-## Code of Conduct
+**`POST /api/v1/bets`** — debits a wallet. The affordability condition lives in
+the write itself:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```sql
+UPDATE wallets SET balance = balance - ? WHERE id = ? AND balance >= ?
+```
 
-## Security Vulnerabilities
+The affected-row count is the answer. There is no interval in which the value
+the decision rests on can go stale, because the decision and the write are one
+operation.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**`POST /api/v1/transfers`** — moves funds between two wallets. Here the
+decision spans two rows, so it cannot live in a single `WHERE` clause. Both
+rows are locked in one statement, ordered by primary key, so a transfer A→B and
+a concurrent B→A request their locks in the same sequence and queue instead of
+deadlocking. Genuine deadlocks are retried.
 
-## License
+Both endpoints are idempotent. A repeated request returns the original result
+rather than applying the work twice — a retried bet answers 200 with the
+original transaction instead of the 500 the unique index would otherwise
+produce. This matters more in iGaming than most places: a provider that never
+received a response cannot tell a timeout from a failure, and its spec requires
+it to retry.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**`GET /api/health`** — checks that MySQL and Redis are actually reachable, not
+merely that the framework booted.
+
+## Design decisions
+
+Recorded as ADRs, because the reasoning is more useful than the outcome:
+
+- [ADR 0001](docs/adr/0001-money-representation.md) — money is `DECIMAL(20,4)`,
+  never a float, and never computed in PHP where the database can do it
+- [ADR 0002](docs/adr/0002-atomic-conditional-update.md) — why the conditional
+  UPDATE over `SELECT ... FOR UPDATE` for single-wallet debits, and the
+  boundary at which that choice reverses
+
+## Running it
+
+```bash
+docker compose up -d --build
+docker compose exec app php artisan migrate --seed
+make health
+```
+
+Setup detail, including the first-run steps, is in [`SETUP.md`](SETUP.md).
+
+## Tests
+
+```bash
+make test
+```
+
+Twenty feature tests covering the ledger invariant, rejection paths, rollback
+on failure, decimal boundaries, and idempotent replay.
+
+They run against **MySQL, not SQLite**. This project's claims are about how a
+specific database behaves under contention, so a green suite on a different
+engine would prove nothing about the thing being claimed.
+
+They also make no attempt to prove concurrency safety. A single PHP process
+cannot produce the interleaving that makes a race visible, and a test that
+pretended otherwise would be worse than no test. That evidence is
+`scripts/race.sh`.
+
+## Stack
+
+Laravel 13 on PHP 8.4, MySQL 8.4, nginx, Docker. Service classes behind
+explicit interfaces, repository pattern, no query logic in controllers.
+
+Redis is provisioned but unused — it's there for the async partner-integration
+work, which isn't built yet.
+
+## Scope
+
+A portfolio project, built to work through concurrency and money-handling
+problems in a domain where both matter.
+
+Not built yet, in rough order of what would teach me most:
+
+- **Async partner notification.** A wallet change has to reach an external
+  system that may be down. Outbox table, at-least-once delivery, idempotency
+  on the receiving side. This is the distributed-state half of the problem the
+  rest of the repo only covers locally.
+- **Distributed rate limiting.** Atomic increment-with-expiry in Redis, which
+  is currently provisioned and unused. Another contention problem, smaller.
+- **Load testing.** k6 against the fixed endpoint, with numbers.
+
+Authentication is deliberately absent and likely to stay that way — it would
+add lines without adding anything to the argument.
