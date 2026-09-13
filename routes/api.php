@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\BetController;
+use App\Http\Controllers\Api\TransferController;
+
 /*
  | Laravel already ships a /up endpoint, but it only proves PHP booted.
  | This one proves the three things session 1 is actually about: nginx reaches
@@ -11,6 +13,7 @@ use App\Http\Controllers\Api\BetController;
  | is wrong, this returns 503 and says which.
  */
 Route::post('/v1/bets', [BetController::class, 'store']);
+Route::post('/v1/transfers', [TransferController::class, 'store']);
 Route::get('/health', function () {
     $checks = [];
 
