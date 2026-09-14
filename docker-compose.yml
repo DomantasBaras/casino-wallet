@@ -15,7 +15,7 @@ services:
     image: nginx:1.27-alpine
     container_name: cw-nginx
     ports:
-      - "8080:80"
+      - "${APP_PORT:-8080}:80"
     volumes:
       - .:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
