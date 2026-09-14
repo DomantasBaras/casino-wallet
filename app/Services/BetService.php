@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Enums\TransactionType;
 use App\Exceptions\InsufficientFunds;
 use App\Exceptions\WalletNotFound;
+use App\Enums\OutboxStatus;
+use App\Models\OutboxMessage;
 use App\Models\Transaction;
 use App\Repositories\WalletRepositoryInterface;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +46,7 @@ class BetService
 
                 $wallet->refresh();
 
-                return $this->wallets->recordTransaction(
+                $transaction = $this->wallets->recordTransaction(
                     wallet: $wallet,
                     type: TransactionType::Bet,
                     amount: bcsub('0', $amount, 4),
@@ -52,6 +54,25 @@ class BetService
                     idempotencyKey: $idempotencyKey,
                     roundId: $roundId,
                 );
+
+                // Same transaction as the debit. Either both land or neither does —
+                // which is the only reason this table exists instead of a dispatched job.
+                OutboxMessage::create([
+                    'transaction_id' => $transaction->id,
+                    'event' => 'bet.placed',
+                    'payload' => [
+                        'player_id' => $wallet->player_id,
+                        'currency' => $wallet->currency,
+                        'type' => TransactionType::Bet->value,
+                        'amount' => (string) $transaction->amount,
+                        'balance_after' => (string) $transaction->balance_after,
+                        'idempotency_key' => $idempotencyKey,
+                        'round_id' => $roundId,
+                        'occurred_at' => $transaction->created_at->toIso8601String(),
+                    ],
+                ]);
+
+                return $transaction;
             });
         } catch (UniqueConstraintViolationException $e) {
             // A concurrent request with the same key committed first. The unique
