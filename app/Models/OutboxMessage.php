@@ -21,7 +21,12 @@ class OutboxMessage extends Model
         'event',
         'payload',
         'status',
+        'attempts',
         'available_at',
+        'claimed_by',
+        'claimed_at',
+        'delivered_at',
+        'last_error',
     ];
 
     protected function casts(): array

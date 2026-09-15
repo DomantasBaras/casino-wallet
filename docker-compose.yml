@@ -2,6 +2,7 @@ services:
   app:
     build:
       context: ./docker/php
+    user: "${UID:-1000}:${GID:-1000}"
     container_name: cw-app
     volumes:
       - .:/var/www/html
