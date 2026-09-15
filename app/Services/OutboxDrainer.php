@@ -135,14 +135,22 @@ class OutboxDrainer
      */
     private function releaseStaleClaims(): void
     {
-        $released = OutboxMessage::query()
+        // Every worker runs this before claiming, so under contention twenty
+        // unqualified UPDATEs hit the same rows at once and InnoDB can find a
+        // lock cycle. Retry on deadlock, the same way the transfer path does
+        // (ADR 0004) — 40001 is a transient concurrency error, not a fault.
+        //
+        // This is a defensive floor. The better fix is to stop every worker
+        // from doing housekeeping at all: move stale-claim recovery to a
+        // single scheduled command (see build plan, step 10 still-open).
+        $released = DB::transaction(fn () => OutboxMessage::query()
             ->where('status', OutboxStatus::Claimed)
             ->where('claimed_at', '<', now()->subMinutes(self::CLAIM_TIMEOUT_MINUTES))
             ->update([
                 'status' => OutboxStatus::Pending,
                 'claimed_by' => null,
                 'claimed_at' => null,
-            ]);
+            ]), attempts: 3);
 
         if ($released > 0) {
             Log::warning('Released stale outbox claims', ['count' => $released]);
