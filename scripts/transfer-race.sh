@@ -14,17 +14,14 @@
 
 set -u
 
-API="http://localhost:8090/api/v1/transfers"
+API="http://localhost:8080/api/v1/transfers"
 CONCURRENCY="${1:-40}"
 AMOUNT="1.00"
 START_EACH="100"
 
-DB_NAME="$(grep -E '^DB_DATABASE=' .env | cut -d= -f2)"
-
 mysql_q() {
     docker compose exec -T mysql \
-        mysql -ucasino -psecret "$DB_NAME" -N -B -e "$1" 2>&1 \
-        | grep -v "Using a password on the command line"
+        mysql -ucasino -psecret casino_wallet -N -B -e "$1" 2>/dev/null
 }
 
 echo "=== Resetting to a known state ==="
