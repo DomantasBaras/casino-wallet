@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\BetController;
 use App\Http\Controllers\Api\TransferController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /*
  | Laravel already ships a /up endpoint, but it only proves PHP booted.
@@ -41,3 +43,21 @@ Route::get('/health', function () {
         'checks' => $checks,
     ], $healthy ? 200 : 503);
 });
+if (app()->environment('local')) {
+    Route::post('/stub/partner/events', function (Request $request) {
+        $mode = env('PARTNER_STUB_MODE', 'ok');
+
+        Log::info('Partner stub received', [
+            'key' => $request->header('Idempotency-Key'),
+            'event' => $request->input('event'),
+            'mode' => $mode,
+        ]);
+
+        return match ($mode) {
+            'down' => response()->json(['error' => 'unavailable'], 503),
+            'reject' => response()->json(['error' => 'unknown player'], 422),
+            'slow' => tap(response()->json(['ok' => true]), fn () => sleep(10)),
+            default => response()->json(['ok' => true]),
+        };
+    });
+}

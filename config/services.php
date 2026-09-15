@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'partner' => [
+        'url' => env('PARTNER_URL', 'http://nginx/api/stub/partner'),
+        'timeout' => (int) env('PARTNER_TIMEOUT', 5),
+    ],
+
 ];
