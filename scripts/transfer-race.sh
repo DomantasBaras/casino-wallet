@@ -14,7 +14,7 @@
 
 set -u
 
-API="http://localhost:8080/api/v1/transfers"
+API="http://localhost:${APP_PORT:-8080}/api/v1/transfers"
 CONCURRENCY="${1:-40}"
 AMOUNT="1.00"
 START_EACH="100"
