@@ -23,13 +23,16 @@ class TransferController extends Controller
             'transfer_id' => ['nullable', 'string', 'max:48'],
         ]);
 
-        $transferId = $this->transfers->execute(
+        $result = $this->transfers->execute(
             (int) $data['from_wallet_id'],
             (int) $data['to_wallet_id'],
             $data['amount'],
             $data['transfer_id'] ?? null,
         );
 
-        return response()->json(['transfer_id' => $transferId], 201);
+        return response()->json(
+            ['transfer_id' => $result->transferId],
+            $result->replayed ? 200 : 201,
+        );
     }
 }

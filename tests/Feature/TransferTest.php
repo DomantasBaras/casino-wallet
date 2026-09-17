@@ -159,23 +159,23 @@ class TransferTest extends TestCase
     }
 
     /**
-     * Replaying a transfer id is refused before the transaction opens, so the
-     * money moves exactly once. Catching it up front also keeps a duplicate
-     * out of the deadlock-retry loop, where it would otherwise be attempted
-     * three times before failing.
+     * Replaying a transfer id moves the money exactly once. The second call
+     * returns the original id marked as a replay rather than throwing —
+     * the same idempotent contract the bet path honours (ADR 0003). The
+     * pre-check also keeps a duplicate out of the deadlock-retry loop, where
+     * it would otherwise be attempted three times before being recognised.
      */
-    public function test_a_repeated_transfer_id_cannot_move_the_money_twice(): void
+    public function test_a_repeated_transfer_id_is_replayed_not_reapplied(): void
     {
         $from = $this->wallet('alice');
         $to = $this->wallet('bob');
 
-        $id = app(TransferFunds::class)->execute($from->id, $to->id, '25.00');
+        $first = app(TransferFunds::class)->execute($from->id, $to->id, '25.00');
+        $this->assertFalse($first->replayed);
 
-        try {
-            app(TransferFunds::class)->execute($from->id, $to->id, '25.00', $id);
-            $this->fail('Expected DuplicateTransfer.');
-        } catch (DuplicateTransfer) {
-        }
+        $second = app(TransferFunds::class)->execute($from->id, $to->id, '25.00', $first->transferId);
+        $this->assertTrue($second->replayed);
+        $this->assertSame($first->transferId, $second->transferId);
 
         $this->assertSame('75.0000', Wallet::find($from->id)->balance);
         $this->assertSame('125.0000', Wallet::find($to->id)->balance);
