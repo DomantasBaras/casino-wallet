@@ -21,14 +21,15 @@ class OutboxDrainer
     private const MAX_ATTEMPTS = 5;
 
     /**
-     * A worker that dies mid-delivery leaves its claim behind. After this
-     * long the claim is assumed dead and the message becomes eligible again.
+     * A worker that dies mid-delivery leaves its claim behind. After the
+     * configured timeout the claim is assumed dead and the message becomes
+     * eligible again. The value lives in config/outbox.php so the health
+     * endpoint counts stale claims against the same threshold.
      *
      * This is why delivery is at-least-once rather than exactly-once: the
      * original worker may have completed the HTTP call before dying, so the
      * partner can see the same event twice.
      */
-    private const CLAIM_TIMEOUT_MINUTES = 5;
 
     public function __construct(
         private readonly PartnerClient $partner,
@@ -145,7 +146,7 @@ class OutboxDrainer
         // single scheduled command (see build plan, step 10 still-open).
         $released = DB::transaction(fn () => OutboxMessage::query()
             ->where('status', OutboxStatus::Claimed)
-            ->where('claimed_at', '<', now()->subMinutes(self::CLAIM_TIMEOUT_MINUTES))
+            ->where('claimed_at', '<', now()->subMinutes(config('outbox.claim_timeout_minutes')))
             ->update([
                 'status' => OutboxStatus::Pending,
                 'claimed_by' => null,

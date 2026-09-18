@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BetController;
 use App\Http\Controllers\Api\TransferController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Api\OutboxHealthController;
 
 /*
  | Laravel already ships a /up endpoint, but it only proves PHP booted.
@@ -61,3 +62,4 @@ if (app()->environment('local')) {
         };
     });
 }
+Route::get('/v1/outbox/health', [OutboxHealthController::class, 'show']);
