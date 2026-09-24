@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\TransferController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Api\OutboxHealthController;
+use App\Http\Middleware\RateLimitBets;
 
 /*
  | Laravel already ships a /up endpoint, but it only proves PHP booted.
@@ -15,7 +16,8 @@ use App\Http\Controllers\Api\OutboxHealthController;
  | php-fpm, php-fpm reaches MySQL, and php-fpm reaches Redis. If any of those
  | is wrong, this returns 503 and says which.
  */
-Route::post('/v1/bets', [BetController::class, 'store']);
+Route::post('/v1/bets', [BetController::class, 'store'])
+    ->middleware(RateLimitBets::class);
 Route::post('/v1/transfers', [TransferController::class, 'store']);
 Route::get('/health', function () {
     $checks = [];

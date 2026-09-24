@@ -32,6 +32,9 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- High enough that ordinary feature tests never trip it; RateLimitBetsTest
+             overrides this per-test to exercise the limiter itself. -->
+        <env name="RATE_LIMIT_BETS_MAX_ATTEMPTS" value="10000"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
